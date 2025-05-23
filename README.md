@@ -8,7 +8,7 @@
 * 使用命令 `strip test` 处理 test 程序；
 * [可选] 使用命令 `objcopy --add-gnu-debuglink=test.debug test` 把和 test 同一目录的 test.debug 链接到 test 中，这样在运行环境如果同一目录存在 test.debug 的情况下使用 gdb 调试就有调试信息；
 * 推送 test 程序到 /app/test 中运行；
-* 推送 test.debug 到 /usr/lib/debug/data/test.debug 中；
+* 推送 test.debug 到 /usr/lib/debug/app/test.debug 中，就是程序执行路径前面加 /usr/lib/debug；
 * 使用 pstack 命令查看堆栈数据；
 
 **A from-scratch implementation of pstack using DWARF debugging and unwind
