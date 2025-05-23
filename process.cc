@@ -12,6 +12,7 @@
 #include <sys/wait.h>
 #include <csignal>
 #include <sys/signal.h>
+#include <cxxabi.h>
 
 #include "libpstack/archreg.h"
 #include "libpstack/dwarf.h"
@@ -321,6 +322,23 @@ buildDIEName(std::ostream &os, const Dwarf::DIE &die, bool first=true) {
     return printedParent;
 }
 
+static std::string demangle_cxx_name(const std::string& mangled_name) {
+    if (mangled_name.empty() || mangled_name[0] != '_' || mangled_name[1] != 'Z') {
+        return mangled_name;
+    }
+
+    int status = 0;
+    char* demangled = abi::__cxa_demangle(mangled_name.c_str(), nullptr, nullptr, &status);
+
+    if (status == 0 && demangled != nullptr) {
+        std::string result(demangled);
+        free(demangled);
+        return result;
+    }
+
+    return mangled_name;
+}
+
 PrintableFrame::PrintableFrame(Process &proc, const StackFrame &frame)
     : proc(proc)
     , functionOffset(std::numeric_limits<Elf::Addr>::max())
@@ -611,8 +629,32 @@ std::ostream &
 Process::dumpStackText(std::ostream &os, const ThreadStack &thread)
 {
     os << std::dec;
+    // 获取线程名称
+    std::string threadName = "<unknown>";
+    pid_t lwpid = thread.info.ti_lid;
+
+    // 对于活动进程，从 /proc/<pid>/task/<lwpid>/comm 读取线程名称
+    if (auto liveProc = dynamic_cast<LiveProcess*>(this)) {
+        char commPath[256];
+        snprintf(commPath, sizeof(commPath), "/proc/%d/task/%d/comm", getPID(), lwpid);
+
+        FILE* commFile = fopen(commPath, "r");
+        if (commFile) {
+            char buffer[256] = {0};
+            if (fgets(buffer, sizeof(buffer), commFile)) {
+                // 移除末尾的换行符
+                size_t len = strlen(buffer);
+                if (len > 0 && buffer[len-1] == '\n') {
+                    buffer[len-1] = '\0';
+                }
+                threadName = buffer;
+            }
+            fclose(commFile);
+        }
+    }
+
     os << "thread: " << (void *)thread.info.ti_tid << ", lwp: "
-       << thread.info.ti_lid << ", type: " << thread.info.ti_type << "\n";
+       << thread.info.ti_lid << ", name: \"" << threadName << "\", type: " << thread.info.ti_type << "\n";
     int frameNo = 0;
     for (auto &frame : thread.stack)
         dumpFrameText(os, frame, frameNo++);
@@ -674,7 +716,7 @@ Process::dumpFrameText(std::ostream &os, const StackFrame &frame, int frameNo)
         if (pframe.dieName != "") {
             name = pframe.dieName;
         } else if (sym) {
-            name = sym->second;
+            name = demangle_cxx_name(sym->second);
             flags += location.die() ? "%" : "!";
         } else {
             name = "<unknown>";
@@ -1104,6 +1146,11 @@ Process::getStacks() {
             this->getRegset<Elf::CoreRegisters, NT_PRSTATUS>(lwpid,  regs);
             threadStacks.back().unwind(*this, regs);
         }
+    });
+
+    // 按照 LWP ID 从小到大排序
+    threadStacks.sort([](const ThreadStack &a, const ThreadStack &b) {
+        return a.info.ti_lid < b.info.ti_lid;
     });
 
     /*

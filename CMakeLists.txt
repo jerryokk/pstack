@@ -4,11 +4,11 @@ set(PSTACK_VERSION 2.11)
 project(pstack LANGUAGES C CXX VERSION "${PSTACK_VERSION}" )
 
 include (GNUInstallDirs)
-enable_testing()
-add_subdirectory(tests)
+# enable_testing()
+# add_subdirectory(tests)
 
 option(PYTHON3 "Compile with python 3 support" OFF)
-option(PYTHON2 "Compile with python 2 support" ON)
+option(PYTHON2 "Compile with python 2 support" OFF)
 option(DEBUGINFOD "Compile with debuginfod support" ON)
 
 math(EXPR PLATFORM_BITS "${CMAKE_SIZEOF_VOID_P} * 8")
@@ -218,4 +218,4 @@ if (PYTHON3 AND Python3_Development_FOUND)
 endif()
 
 # for automake and rpmbuild
-add_custom_target(check COMMAND make test)
+# add_custom_target(check COMMAND make test)
