@@ -6,10 +6,10 @@
 * 使用命令 `g++ -g test.cpp -o test` 编译出 test 程序；
 * 使用命令 `objcopy --only-keep-debug test test.debug` 产生 debug 信息文件；
 * 使用命令 `strip test` 处理 test 程序；
-* [可选] 使用命令 `objcopy --add-gnu-debuglink=test.debug test` 把和 test 同一目录的 test.debug 链接到 test 中，这样在运行环境如果同一目录存在 test.debug 的情况下使用 gdb 调试就有调试信息；
+* 使用命令 `objcopy --add-gnu-debuglink=test.debug test` 把 test.debug 信息链接到 test 中，这样如果 debug 查找目录下存在 test.debug 的情况下使用 gdb 调试就有调试信息；
 * 推送 test 程序到 /app/test 中运行；
-* 推送 test.debug 到 /usr/lib/debug/app/test.debug 中，就是程序执行路径前面加 /usr/lib/debug，后面的路径如果是软链接要换成实际路径；
-* 使用 pstack 命令查看堆栈数据；
+* 推送 test.debug 到 /usr/lib/debug/（默认 debug 查找目录）中，也可使用 `-g /path/to/dir` 指定查找目录；
+* 使用 `pstack` 命令（或 `pstack 1234 -g /path/to/dir`）查看堆栈数据；
 
 **A from-scratch implementation of pstack using DWARF debugging and unwind
 information.  Works for C/C++, Go, Rust, and Python**
