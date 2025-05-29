@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/signal.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 
 #include <sysexits.h>
 #include <unistd.h>
@@ -18,6 +19,12 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <iomanip>
+#include <cstring>
+#include <optional>
+#ifdef DEBUGINFOD
+#include <elfutils/debuginfod.h>
+#endif
 
 #define XSTR(a) #a
 #define STR(a) XSTR(a)
@@ -238,8 +245,26 @@ emain(int argc, char **argv, Context &context)
     .add("debug-dir",
             'g',
             "directory",
-            "extra location to find debug files for binaries and shared libraries",
-            [&](const char *arg) { context.addDebugDirectory(arg); })
+            "extra location to find debug files for binaries and shared libraries (must be a directory)",
+            [&](const char *arg) {
+                // 检查参数是否确实是一个目录
+                struct stat st;
+                if (stat(arg, &st) == 0) {
+                    if (!S_ISDIR(st.st_mode)) {
+                        std::cerr << "Error: " << arg << " is not a directory. The -g parameter must specify a directory.\n";
+                        std::cerr << "       If you want to use a specific debug file, put it in a directory and use -g with that directory.\n";
+                        std::cerr << "       Example: mkdir -p /tmp/debug && cp " << arg << " /tmp/debug/ && " << argv[0] << " -g /tmp/debug ...\n";
+                    } else {
+                        context.addDebugDirectory(arg);
+                        if (context.verbose) {
+                            *context.debug << "Added debug directory: " << arg << "\n";
+                        }
+                    }
+                } else {
+                    std::cerr << "Warning: could not access " << arg << ": " << strerror(errno) << "\n";
+                    context.addDebugDirectory(arg); // 仍然添加，以便与现有行为兼容
+                }
+            })
 
     .add("constant",
             'b',

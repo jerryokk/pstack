@@ -12,14 +12,14 @@ option(PYTHON2 "Compile with python 2 support" OFF)
 option(DEBUGINFOD "Compile with debuginfod support" ON)
 
 math(EXPR PLATFORM_BITS "${CMAKE_SIZEOF_VOID_P} * 8")
-set(PSTACK_BIN "pstack" CACHE STRING "Name of the 'pstack' binary")
+set(PSTACK_BIN "pstack2" CACHE STRING "Name of the 'pstack' binary")
 
 # Generate position independent code, even for static libs - that way we can
 # link them to shared libs.
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/" CACHE STRING "Rpath to install for binaries or the empty string")
-set(LIBTYPE "SHARED" CACHE STRING "Build libraries as STATIC or SHARED")
+set(LIBTYPE "STATIC" CACHE STRING "Build libraries as STATIC or SHARED")
 set (PYTHON3_SOURCE "" CACHE STRING "Path to the CPython source code")
 option(TIDY "Run clang-tidy on the source" False)
 
@@ -66,7 +66,7 @@ include_directories(${CMAKE_SOURCE_DIR})
 if (LIBLZMA_FOUND)
    set(lzmasrc lzma.cc)
    add_definitions("-DWITH_LZMA")
-   include_directories(${LIBLZMA_INCLUDES})
+   include_directories(${LIBLZMA_INCLUDE_DIRS})
 endif()
 
 if (ZLIB_FOUND)

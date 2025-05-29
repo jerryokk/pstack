@@ -12,6 +12,7 @@
 #include <iomanip>
 #include <iostream>
 #include <cstring>
+#include <sys/stat.h>
 #ifdef DEBUGINFOD
 #include <elfutils/debuginfod.h>
 #endif
@@ -543,6 +544,47 @@ Object::getDebug() const
         return debugObject.get();
     debugLoaded = true;
 
+    // 先尝试在调试目录中查找匹配的调试文件
+    auto execName = context.basename(stringify(*io));
+    if (context.debug && context.verbose) {
+        *context.debug << "looking for debug info for executable: " << execName << "\n";
+    }
+
+    // 在所有调试目录中查找"可执行文件名.debug"文件
+    for (const auto &dir : context.getDebugDirectories()) {
+        // 检查目录存在并且可访问
+        if (access(dir.c_str(), R_OK) == 0) {
+            struct stat st;
+            if (stat(dir.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
+                std::string possibleDebugFile = dir + "/" + execName + ".debug";
+                if (context.debug && context.verbose) {
+                    *context.debug << "checking for debug file: " << possibleDebugFile << "\n";
+                }
+
+                if (access(possibleDebugFile.c_str(), R_OK) == 0) {
+                    if (context.debug) {
+                        *context.debug << "trying to load debug file: " << possibleDebugFile << "\n";
+                    }
+                    try {
+                        debugObject = std::make_shared<Object>(context, std::make_shared<MmapReader>(context, possibleDebugFile), true);
+                        if (context.debug) {
+                            *context.debug << "successfully loaded debug file: " << possibleDebugFile << "\n";
+                        }
+                        return debugObject.get();
+                    } catch (const std::exception &ex) {
+                        if (context.debug && context.verbose) {
+                            *context.debug << "failed to load debug file: " << possibleDebugFile << ": " << ex.what() << "\n";
+                        }
+                    }
+                }
+            } else if (context.debug && context.verbose) {
+                *context.debug << "path is not a directory: " << dir << "\n";
+            }
+        } else if (context.debug && context.verbose) {
+            *context.debug << "debug directory not accessible: " << dir << "\n";
+        }
+    }
+
     // Use the build ID to find debug data.
     std::vector<unsigned char> buildID;
     for (const auto &note : notes()) {
@@ -570,7 +612,48 @@ Object::getDebug() const
         if (hdr) {
             auto link = hdr.io()->readString(0);
             auto dir = context.dirname(stringify(*io));
-            debugObject = context.getDebugImage(dir + "/" + link); //
+            if (context.debug && context.verbose) {
+                *context.debug << "trying to find debug file via gnu_debuglink: " << link << "\n";
+                *context.debug << "original file directory: " << dir << "\n";
+            }
+
+            // 在-g指定的调试目录中查找debuglink指向的文件
+            for (const auto &debug_dir : context.getDebugDirectories()) {
+                std::string debug_path = debug_dir + "/" + link;
+                if (context.debug && context.verbose) {
+                    *context.debug << "checking debug file at: " << debug_path << "\n";
+                }
+                if (access(debug_path.c_str(), R_OK) == 0) {
+                    if (context.debug) {
+                        *context.debug << "found debug file in debug directory: " << debug_path << "\n";
+                    }
+                    debugObject = context.getDebugImage(link);
+                    if (debugObject) {
+                        break;
+                    }
+                }
+            }
+
+            // 在可执行文件所在目录中查找debuglink指向的文件
+            if (!debugObject) {
+                auto debug_path = dir + "/" + link;
+                if (context.debug && context.verbose) {
+                    *context.debug << "trying to find debug file in original directory: " << debug_path << "\n";
+                }
+                try {
+                    auto reader = std::make_shared<MmapReader>(context, debug_path);
+                    debugObject = std::make_shared<Object>(context, reader, true);
+                    if (context.debug) {
+                        *context.debug << "successfully loaded debug file from original directory: " << debug_path << "\n";
+                    }
+                } catch (const std::exception &ex) {
+                    if (context.debug && context.verbose) {
+                        *context.debug << "failed to load debug file from original directory: " << debug_path << ": " << ex.what() << "\n";
+                    }
+                }
+            }
+        } else if (context.debug && context.verbose) {
+            *context.debug << "no .gnu_debuglink section found in " << *io << "\n";
         }
     }
 
@@ -597,6 +680,10 @@ Object::getDebug() const
         if (context.verbose >= 2)
            *context.debug << "no debug object for " << *this->io << "\n";
         return nullptr;
+    }
+
+    if (context.debug) {
+        *context.debug << "successfully found debug object " << *debugObject->io << " for " << *io << "\n";
     }
 
     if (context.verbose >= 2)

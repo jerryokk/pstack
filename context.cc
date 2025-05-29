@@ -102,16 +102,39 @@ Context::getImageIfLoaded(const std::string &name)
 std::shared_ptr<Elf::Object>
 Context::getDebugImage(const std::string &name) {
     // XXX: verify checksum.
+    if (debug && verbose) {
+        *debug << "searching for debug image: " << name << "\n";
+    }
+
     for (const auto &dir : debugDirectories) {
-        auto img = getImageIfLoaded(stringify(dir, "/", name));
-        if (img)
+        auto fullpath = stringify(dir, "/", name);
+        if (debug && verbose) {
+            *debug << "checking for debug image at: " << fullpath << "\n";
+        }
+        auto img = getImageIfLoaded(fullpath);
+        if (img) {
+            if (debug) {
+                *debug << "found previously loaded debug image at: " << fullpath << "\n";
+            }
             return img;
+        }
     }
     for (const auto &dir : debugDirectories) {
+        auto fullpath = stringify(dir, "/", name);
         try {
-           return getImageForName(stringify(dir, "/", name), true);
+           if (debug && verbose) {
+               *debug << "trying to load debug image from: " << fullpath << "\n";
+           }
+           auto img = getImageForName(fullpath, true);
+           if (debug) {
+               *debug << "successfully loaded debug image from: " << fullpath << "\n";
+           }
+           return img;
         }
         catch (const std::exception &ex) {
+            if (debug && verbose) {
+                *debug << "failed to load debug image from: " << fullpath << ": " << ex.what() << "\n";
+            }
             continue;
         }
     }

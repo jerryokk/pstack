@@ -1,5 +1,15 @@
 #include <features.h>
 
+// ANSI color codes
+#define COLOR_RESET   "\033[0m"
+#define COLOR_BLUE    "\033[34m"
+#define COLOR_GREEN   "\033[32m"
+#define COLOR_YELLOW  "\033[33m"
+#define COLOR_CYAN    "\033[36m"
+#define COLOR_MAGENTA "\033[35m"
+#define COLOR_RED     "\033[31m"
+#define COLOR_BOLD    "\033[1m"
+
 #include <link.h>
 #include <unistd.h>
 #include <charconv>
@@ -135,7 +145,7 @@ gregset2core(Elf::CoreRegisters &core, const gregset_t greg) {
 #elif defined(__arm__)
     // ARM has unfied types for NT_PRSTATUS and ucontext, and the offsets are
     // actually the DWARF register numbers, too.
-    for (int i = 0; i < ELF_NGREG)
+    for (int i = 0; i < ELF_NGREG; ++i)
         core.regs[i] = greg[i];
 #endif
 }
@@ -653,8 +663,14 @@ Process::dumpStackText(std::ostream &os, const ThreadStack &thread)
         }
     }
 
-    os << "thread: " << (void *)thread.info.ti_tid << ", lwp: "
-       << thread.info.ti_lid << ", name: \"" << threadName << "\", type: " << thread.info.ti_type << "\n";
+    os << COLOR_BOLD << COLOR_BLUE << "lwp: " << COLOR_RESET << COLOR_CYAN << thread.info.ti_lid
+       << COLOR_RESET << COLOR_BLUE << ", name: \"" << COLOR_RESET << COLOR_GREEN
+       << threadName << COLOR_RESET << COLOR_BLUE
+       << "\", thread: " << COLOR_RESET
+       << COLOR_CYAN << (void *)thread.info.ti_tid << COLOR_RESET << COLOR_BLUE
+       << ", type: " << COLOR_RESET << COLOR_CYAN << thread.info.ti_type
+       << COLOR_RESET << "\n";
+
     int frameNo = 0;
     for (auto &frame : thread.stack)
         dumpFrameText(os, frame, frameNo++);
@@ -681,10 +697,10 @@ Process::dumpFrameText(std::ostream &os, const StackFrame &frame, int frameNo)
         // inlining comes from DIEs with DW_TAG_inlined_subroutine - so no
         // point in trying this without DIE names
         for (auto i = pframe.inlined.rbegin(); i != pframe.inlined.rend(); ++i) {
-           os << "#"
+           os << COLOR_YELLOW << "#"
                << std::left << std::setw(2) << std::setfill(' ') << frameNo << " "
                << std::setw(ELF_BITS/4 + 2) << std::setfill(' ')
-               << "inlined";
+               << "inlined" << COLOR_RESET;
            os << " in ";
            buildDIEName(os, *i);
            if (!context.options.nosrc) {
@@ -701,10 +717,10 @@ Process::dumpFrameText(std::ostream &os, const StackFrame &frame, int frameNo)
         }
     }
 
-    os << "#"
+    os << COLOR_YELLOW << "#"
         << std::left << std::setw(2) << std::setfill(' ') << frameNo << " "
-        << std::right << "0x" << std::hex << std::setw(ELF_BITS/4) << std::setfill('0')
-        << frame.rawIP() << std::dec;
+        << std::right << COLOR_CYAN << "0x" << std::hex << std::setw(ELF_BITS/4) << std::setfill('0')
+        << frame.rawIP() << std::dec << COLOR_RESET;
 
     if (location.inObject()) {
         std::string name;
@@ -722,19 +738,24 @@ Process::dumpFrameText(std::ostream &os, const StackFrame &frame, int frameNo)
             name = "<unknown>";
         }
         os << " in "
-            << name
-            << flags
-            << "(" << ArgPrint(*this, frame) << ")";
+            << COLOR_MAGENTA << name
+            << COLOR_RED << flags
+            << COLOR_RESET << "(";
+
+        // Print arguments in green
+        os << COLOR_GREEN;
+        os << ArgPrint(*this, frame);
+        os << COLOR_RESET << ")";
 
         if (pframe.functionOffset != std::numeric_limits<Elf::Addr>::max())
-            os << "+" << pframe.functionOffset;
-        os << " in " << stringify(*location.elf()->io);
+            os << COLOR_CYAN << "+" << pframe.functionOffset << COLOR_RESET;
+        os << " in " << COLOR_BLUE << stringify(*location.elf()->io) << COLOR_RESET;
         if (context.verbose)
            os << "@0x" << std::hex << frame.rawIP() - location.elfReloc() << std::dec;
         if (src.first != "")
-           os << " at " << src.first << ":" << std::dec << src.second;
+           os << " at " << COLOR_GREEN << src.first << ":" << std::dec << src.second << COLOR_RESET;
     } else {
-        os << " no information for frame";
+        os << COLOR_RED << " no information for frame" << COLOR_RESET;
     }
     if (context.verbose)
        os << " via " << frame.mechanism;

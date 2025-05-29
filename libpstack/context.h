@@ -39,6 +39,9 @@ public:
    void addDebugDirectory(std::string_view dir) {
       debugDirectories.emplace_back(dir);
    }
+   const std::vector<std::string>& getDebugDirectories() const {
+      return debugDirectories;
+   }
    std::ostream *debug{};
    std::ostream *output{};
    PstackOptions options{};
