@@ -5,7 +5,8 @@
 * 编写一个程序 test.cpp；
 * 使用命令 `g++ -g test.cpp -o test` 编译出 test 程序；
 * 使用命令 `objcopy --only-keep-debug test test.debug` 产生 debug 信息文件；
-* 使用命令 `strip test` 处理 test 程序；
+* 使用命令 `strip --strip-debug test` 处理 test 程序（如果是 debug 固件，建议含有符号表）；
+* （如果是 release 固件）继续使用命令 `strip --strip-unneeded test` 处理 test 程序；
 * 使用命令 `objcopy --add-gnu-debuglink=test.debug test` 把 test.debug 信息链接到 test 中，这样如果 debug 查找目录下存在 test.debug 的情况下使用 gdb 调试就有调试信息；
 * 推送 test 程序到 /app/test 中运行；
 * 推送 test.debug 到 /usr/lib/debug/（默认 debug 查找目录）中，也可使用 `-g /path/to/dir` 指定查找目录；
